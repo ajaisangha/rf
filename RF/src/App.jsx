@@ -23,6 +23,13 @@ const DAYS = [
   { label: 'Saturday', abbreviation: 'Sat' },
 ]
 
+const RESERVED_LOCKERS = {
+  'DIS-14': 'Dispatch Supervisor',
+  'DIS-15': 'Dispatch Supervisor',
+  'DIS-16': 'Temp. Gun',
+  'DIS-17': 'Reserved',
+}
+
 const emptyForm = {
   name: '',
   shift: 'Day',
@@ -42,6 +49,7 @@ function App() {
   const [employeeToDelete, setEmployeeToDelete] = useState(null)
   const [draggedEmployeeId, setDraggedEmployeeId] = useState(null)
   const [isUpdatingLocker, setIsUpdatingLocker] = useState(false)
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(null)
 
   useEffect(() => {
     let unsubscribeEmployees = () => {}
@@ -179,10 +187,55 @@ function App() {
       .map((day) => day.abbreviation)
       .join(', ')
 
-  const employeeNameById = (employeeId) => {
-    const employee = employees.find((item) => item.id === employeeId)
+  const employeeById = (employeeId) =>
+    employees.find((employee) => employee.id === employeeId)
 
+  const employeeNameById = (employeeId) => {
+    const employee = employeeById(employeeId)
     return employee ? employee.name : 'Unknown employee'
+  }
+
+  const schedulesOverlap = (firstDays = [], secondDays = []) =>
+    firstDays.some((day) => secondDays.includes(day))
+
+  const getLockerAssignmentField = (employee) =>
+    employee.shift === 'Day' ? 'dayEmployeeIds' : 'nightEmployeeIds'
+
+  const isReservedLocker = (locker) =>
+    Boolean(RESERVED_LOCKERS[locker.lockerNumber])
+
+  const lockerCanAcceptEmployee = (locker, employee) => {
+    if (!employee || isReservedLocker(locker)) {
+      return false
+    }
+
+    const assignmentField = getLockerAssignmentField(employee)
+    const assignedIds = locker[assignmentField] || []
+
+    return assignedIds.every((assignedEmployeeId) => {
+      const assignedEmployee = employeeById(assignedEmployeeId)
+
+      if (!assignedEmployee) {
+        return true
+      }
+
+      return !schedulesOverlap(employee.days, assignedEmployee.days)
+    })
+  }
+
+  const getSuggestedLockers = (employee) =>
+    lockers.filter((locker) => lockerCanAcceptEmployee(locker, employee))
+
+  const getSuggestionText = (employee) => {
+    const suggestedLockers = getSuggestedLockers(employee)
+
+    if (suggestedLockers.length === 0) {
+      return 'No compatible RF lockers are currently available.'
+    }
+
+    return `Suggested RFs: ${suggestedLockers
+      .map((locker) => locker.lockerNumber)
+      .join(', ')}`
   }
 
   const openAddModal = (shift = 'Day') => {
@@ -268,15 +321,56 @@ function App() {
     }
   }
 
+  const updateLocker = async (locker, updatedData) => {
+    const encryptedLocker = await encryptEmployee(updatedData)
+
+    await updateDoc(doc(db, 'lockers', locker.id), {
+      ...encryptedLocker,
+      updatedAt: serverTimestamp(),
+    })
+  }
+
   const handleDelete = async () => {
-    if (!employeeToDelete) return
+    if (!employeeToDelete || isUpdatingLocker) return
+
+    setIsUpdatingLocker(true)
 
     try {
+      const affectedLockers = lockers.filter(
+        (locker) =>
+          locker.dayEmployeeIds.includes(employeeToDelete.id) ||
+          locker.nightEmployeeIds.includes(employeeToDelete.id)
+      )
+
+      await Promise.all(
+        affectedLockers.map((locker) =>
+          updateLocker(locker, {
+            lockerNumber: locker.lockerNumber,
+            combination: locker.combination,
+            dayEmployeeIds: locker.dayEmployeeIds.filter(
+              (employeeId) => employeeId !== employeeToDelete.id
+            ),
+            nightEmployeeIds: locker.nightEmployeeIds.filter(
+              (employeeId) => employeeId !== employeeToDelete.id
+            ),
+          })
+        )
+      )
+
       await deleteDoc(doc(db, 'employees', employeeToDelete.id))
+
+      if (selectedEmployeeId === employeeToDelete.id) {
+        setSelectedEmployeeId(null)
+      }
+
       setEmployeeToDelete(null)
     } catch (deleteError) {
       console.error(deleteError)
-      setError('Could not delete the employee. Please try again.')
+      setError(
+        'Could not delete the employee or remove their RF locker assignment.'
+      )
+    } finally {
+      setIsUpdatingLocker(false)
     }
   }
 
@@ -289,24 +383,51 @@ function App() {
     setDraggedEmployeeId(null)
   }
 
-  const updateLocker = async (locker, updatedData) => {
-    const encryptedLocker = await encryptEmployee(updatedData)
-
-    await updateDoc(doc(db, 'lockers', locker.id), {
-      ...encryptedLocker,
-      updatedAt: serverTimestamp(),
-    })
-  }
-
   const handleLockerDrop = async (event, locker, assignmentField) => {
     event.preventDefault()
 
     if (!draggedEmployeeId || isUpdatingLocker) return
 
-    const employeeId = draggedEmployeeId
+    const employee = employeeById(draggedEmployeeId)
+
+    if (!employee) {
+      setError('Employee information could not be found.')
+      setDraggedEmployeeId(null)
+      return
+    }
+
+    if (isReservedLocker(locker)) {
+      setError(
+        `${locker.lockerNumber} is reserved for ${
+          RESERVED_LOCKERS[locker.lockerNumber]
+        }.`
+      )
+      setDraggedEmployeeId(null)
+      return
+    }
+
+    if (
+      (employee.shift === 'Day' && assignmentField !== 'dayEmployeeIds') ||
+      (employee.shift === 'Night' && assignmentField !== 'nightEmployeeIds')
+    ) {
+      setError(
+        `${employee.name} is a ${employee.shift} Shift employee and can only be assigned to the ${employee.shift} User column.`
+      )
+      setDraggedEmployeeId(null)
+      return
+    }
+
+    if (!lockerCanAcceptEmployee(locker, employee)) {
+      setError(
+        `${employee.name} cannot share ${locker.lockerNumber} because their scheduled days overlap with another assigned employee.`
+      )
+      setDraggedEmployeeId(null)
+      return
+    }
 
     setDraggedEmployeeId(null)
     setIsUpdatingLocker(true)
+    setError('')
 
     try {
       const updatedLocker = {
@@ -314,18 +435,18 @@ function App() {
         combination: locker.combination,
         dayEmployeeIds:
           assignmentField === 'dayEmployeeIds'
-            ? [...new Set([...locker.dayEmployeeIds, employeeId])]
+            ? [...new Set([...locker.dayEmployeeIds, employee.id])]
             : locker.dayEmployeeIds,
         nightEmployeeIds:
           assignmentField === 'nightEmployeeIds'
-            ? [...new Set([...locker.nightEmployeeIds, employeeId])]
+            ? [...new Set([...locker.nightEmployeeIds, employee.id])]
             : locker.nightEmployeeIds,
       }
 
       await updateLocker(locker, updatedLocker)
     } catch (lockerError) {
       console.error(lockerError)
-      setError('Could not assign the employee to this locker.')
+      setError('Could not assign the employee to this RF locker.')
     } finally {
       setIsUpdatingLocker(false)
     }
@@ -357,7 +478,7 @@ function App() {
       await updateLocker(locker, updatedLocker)
     } catch (lockerError) {
       console.error(lockerError)
-      setError('Could not remove the employee from this locker.')
+      setError('Could not remove the employee from this RF locker.')
     } finally {
       setIsUpdatingLocker(false)
     }
@@ -365,6 +486,15 @@ function App() {
 
   const renderLockerAssignmentCell = (locker, assignmentField) => {
     const employeeIds = locker[assignmentField] || []
+    const reservedLabel = RESERVED_LOCKERS[locker.lockerNumber]
+
+    if (reservedLabel) {
+      return (
+        <td className="locker-assignment-cell reserved-locker-cell">
+          <span className="reserved-locker-label">{reservedLabel}</span>
+        </td>
+      )
+    }
 
     return (
       <td
@@ -374,25 +504,42 @@ function App() {
       >
         {employeeIds.length > 0 ? (
           <div className="locker-assignment-list">
-            {employeeIds.map((employeeId) => (
-              <div className="locker-employee-pill" key={employeeId}>
-                <span>{employeeNameById(employeeId)}</span>
+            {employeeIds.map((employeeId) => {
+              const employee = employeeById(employeeId)
 
-                <button
-                  type="button"
-                  className="remove-locker-user"
-                  onClick={() =>
-                    removeLockerAssignment(locker, assignmentField, employeeId)
-                  }
-                  aria-label={`Remove ${employeeNameById(
-                    employeeId
-                  )} from ${locker.lockerNumber}`}
-                  disabled={isUpdatingLocker}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+              return (
+                <div className="locker-employee-pill" key={employeeId}>
+                  <div className="locker-employee-information">
+                    <strong>
+                      {employee ? employee.name : 'Unknown employee'}
+                    </strong>
+                    <span>
+                      {employee
+                        ? formatDays(employee.days)
+                        : 'Schedule unavailable'}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="remove-locker-user"
+                    onClick={() =>
+                      removeLockerAssignment(
+                        locker,
+                        assignmentField,
+                        employeeId
+                      )
+                    }
+                    aria-label={`Remove ${employeeNameById(
+                      employeeId
+                    )} from ${locker.lockerNumber}`}
+                    disabled={isUpdatingLocker}
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            })}
           </div>
         ) : (
           <span className="locker-drop-placeholder">
@@ -470,31 +617,75 @@ function App() {
 
           <tbody>
             {employeeList.length > 0 ? (
-              employeeList.map((employee) => (
-                <tr
-                  key={employee.id}
-                  draggable
-                  onDragStart={(event) => handleDragStart(event, employee.id)}
-                  onDragEnd={handleDragEnd}
-                >
-                  <td className="roster-table-name">
-                    <span className="table-avatar">
-                      {employee.name.charAt(0).toUpperCase()}
-                    </span>
-                    {employee.name}
-                  </td>
+              employeeList.map((employee) => {
+                const isSelected = selectedEmployeeId === employee.id
+                const suggestionText = getSuggestionText(employee)
+                const suggestedLockers = getSuggestedLockers(employee)
 
-                  <td className="roster-schedule">
-                    {formatDays(employee.days)}
-                  </td>
+                return (
+                  <>
+                    <tr
+                      key={employee.id}
+                      className={isSelected ? 'selected-employee-row' : ''}
+                      draggable
+                      title={suggestionText}
+                      onClick={() =>
+                        setSelectedEmployeeId(
+                          isSelected ? null : employee.id
+                        )
+                      }
+                      onDragStart={(event) =>
+                        handleDragStart(event, employee.id)
+                      }
+                      onDragEnd={handleDragEnd}
+                    >
+                      <td className="roster-table-name">
+                        <span className="table-avatar">
+                          {employee.name.charAt(0).toUpperCase()}
+                        </span>
+                        {employee.name}
+                      </td>
 
-                  <td className="roster-drag-cell">
-                    <span className="drag-handle" aria-label="Drag employee">
-                      ⠿
-                    </span>
-                  </td>
-                </tr>
-              ))
+                      <td className="roster-schedule">
+                        {formatDays(employee.days)}
+                      </td>
+
+                      <td className="roster-drag-cell">
+                        <span className="drag-handle" aria-label="Drag employee">
+                          ⠿
+                        </span>
+                      </td>
+                    </tr>
+
+                    {isSelected && (
+                      <tr className="employee-suggestion-row">
+                        <td colSpan="3">
+                          <div className="employee-suggestions">
+                            <strong>Suggested RF lockers</strong>
+
+                            {suggestedLockers.length > 0 ? (
+                              <div className="suggested-locker-list">
+                                {suggestedLockers.map((locker) => (
+                                  <span
+                                    className="suggested-locker-badge"
+                                    key={locker.id}
+                                  >
+                                    {locker.lockerNumber}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="no-suggestion-text">
+                                No compatible RF lockers available.
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )
+              })
             ) : (
               <tr>
                 <td colSpan="3" className="roster-table-empty">
@@ -633,8 +824,8 @@ function App() {
                   </div>
 
                   <p className="roster-description">
-                    Drag an employee into the locker table to assign them.
-                    Remove a user from a locker to make them available again.
+                    Click an employee to view suggested lockers, then drag them
+                    to a compatible RF locker assignment cell.
                   </p>
 
                   <div className="roster-list roster-table-list">
@@ -642,6 +833,7 @@ function App() {
                       'Day Shift',
                       availableDayEmployees
                     )}
+
                     {renderAvailableEmployeeTable(
                       'Night Shift',
                       availableNightEmployees
@@ -666,6 +858,7 @@ function App() {
                       dayShiftEmployees,
                       'Day'
                     )}
+
                     {renderEmployeeTable(
                       'Night Shift',
                       nightShiftEmployees,
@@ -693,6 +886,7 @@ function App() {
                 <p className="eyebrow">
                   {editingEmployee ? 'Update employee' : 'New employee'}
                 </p>
+
                 <h2 id="employee-modal-title">
                   {editingEmployee ? 'Edit employee' : 'Add employee'}
                 </h2>
