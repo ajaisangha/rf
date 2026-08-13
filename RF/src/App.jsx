@@ -38,6 +38,7 @@ function App() {
   const [editingEmployee, setEditingEmployee] = useState(null)
   const [formData, setFormData] = useState(emptyForm)
   const [isSaving, setIsSaving] = useState(false)
+  const [employeeToDelete, setEmployeeToDelete] = useState(null)
 
   useEffect(() => {
     let unsubscribe = () => {}
@@ -193,20 +194,17 @@ function App() {
     }
   }
 
-  const handleDelete = async (employee) => {
-    const shouldDelete = window.confirm(
-      `Delete ${employee.name} from the ${employee.shift} shift?`
-    )
+const handleDelete = async () => {
+  if (!employeeToDelete) return
 
-    if (!shouldDelete) return
-
-    try {
-      await deleteDoc(doc(db, 'employees', employee.id))
-    } catch (deleteError) {
-      console.error(deleteError)
-      setError('Could not delete the employee. Please try again.')
-    }
+  try {
+    await deleteDoc(doc(db, 'employees', employeeToDelete.id))
+    setEmployeeToDelete(null)
+  } catch (deleteError) {
+    console.error(deleteError)
+    setError('Could not delete the employee. Please try again.')
   }
+}
 
   const formatDays = (days) =>
     DAYS.filter((day) => days.includes(day.label))
@@ -257,7 +255,7 @@ function App() {
                     <button
                       className="text-button delete-button"
                       type="button"
-                      onClick={() => handleDelete(employee)}
+                      onClick={() => setEmployeeToDelete(employee)}
                     >
                       Delete
                     </button>
@@ -472,6 +470,50 @@ function App() {
           </section>
         </div>
       )}
+
+      {employeeToDelete && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={() => setEmployeeToDelete(null)}
+        >
+          <section
+            className="modal delete-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-modal-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="delete-icon">!</div>
+
+            <h2 id="delete-modal-title">Delete employee?</h2>
+
+            <p className="delete-message">
+              Are you sure you want to delete{' '}
+              <strong>{employeeToDelete.name}</strong> from the{' '}
+              {employeeToDelete.shift} Shift? This action cannot be undone.
+            </p>
+
+            <div className="modal-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setEmployeeToDelete(null)}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="danger-button"
+                type="button"
+                onClick={handleDelete}
+              >
+                Delete employee
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
     </main>
   )
 }

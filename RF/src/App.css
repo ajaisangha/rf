@@ -419,3 +419,46 @@ tbody tr:last-child td {
     white-space: nowrap;
   }
 }
+
+.delete-modal {
+  max-width: 440px;
+  text-align: center;
+}
+
+.delete-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background: #fff0f1;
+  color: var(--danger);
+  font-size: 1.5rem;
+  font-weight: 900;
+}
+
+.delete-message {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.delete-message strong {
+  color: var(--navy);
+}
+
+.danger-button {
+  border: 1px solid var(--danger);
+  border-radius: 9px;
+  padding: 10px 15px;
+  background: var(--danger);
+  color: white;
+  font-weight: 750;
+  transition: 0.2s ease;
+}
+
+.danger-button:hover {
+  border-color: #a82334;
+  background: #a82334;
+}
