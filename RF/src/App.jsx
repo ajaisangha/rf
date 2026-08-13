@@ -39,6 +39,8 @@ function App() {
   const [formData, setFormData] = useState(emptyForm)
   const [isSaving, setIsSaving] = useState(false)
   const [employeeToDelete, setEmployeeToDelete] = useState(null)
+  const [draggedEmployeeId, setDraggedEmployeeId] = useState(null)
+  const [rfAssignments, setRfAssignments] = useState([])
 
   useEffect(() => {
     let unsubscribe = () => {}
@@ -206,6 +208,58 @@ const handleDelete = async () => {
   }
 }
 
+const handleDragStart = (employeeId) => {
+  setDraggedEmployeeId(employeeId)
+}
+
+const handleDragEnd = () => {
+  setDraggedEmployeeId(null)
+}
+
+const handleAssignmentDrop = (event) => {
+  event.preventDefault()
+
+  if (!draggedEmployeeId) return
+
+  setRfAssignments((currentAssignments) => {
+    if (currentAssignments.includes(draggedEmployeeId)) {
+      return currentAssignments
+    }
+
+    return [...currentAssignments, draggedEmployeeId]
+  })
+
+  setDraggedEmployeeId(null)
+}
+
+const handleRosterDrop = (event) => {
+  event.preventDefault()
+
+  if (!draggedEmployeeId) return
+
+  setRfAssignments((currentAssignments) =>
+    currentAssignments.filter(
+      (employeeId) => employeeId !== draggedEmployeeId
+    )
+  )
+
+  setDraggedEmployeeId(null)
+}
+
+const removeAssignment = (employeeId) => {
+  setRfAssignments((currentAssignments) =>
+    currentAssignments.filter((id) => id !== employeeId)
+  )
+}
+
+const assignedEmployees = employees.filter((employee) =>
+  rfAssignments.includes(employee.id)
+)
+
+const availableEmployees = employees.filter(
+  (employee) => !rfAssignments.includes(employee.id)
+)
+
   const formatDays = (days) =>
     DAYS.filter((day) => days.includes(day.label))
       .map((day) => day.abbreviation)
@@ -309,23 +363,138 @@ const handleDelete = async () => {
         )}
 
         {activeTab === 'rfs' ? (
-          <section className="coming-soon-card">
-            <div className="coming-soon-icon">RF</div>
-            <p className="eyebrow">Scanner management</p>
-            <h2>RF scanner tracking is coming soon.</h2>
+  <section className="rf-dashboard">
+    <div
+      className="rf-workspace"
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={handleAssignmentDrop}
+    >
+      <div className="rf-workspace-header">
+        <div>
+          <p className="eyebrow">Scanner management</p>
+          <h2>RF Assignment Board</h2>
+          <p>
+            Drag employees from the roster into this area to prepare RF
+            assignments.
+          </p>
+        </div>
+
+        <div className="rf-count">
+          {assignedEmployees.length} assigned
+        </div>
+      </div>
+
+      <div className="rf-drop-zone">
+        {assignedEmployees.length > 0 ? (
+          <div className="assigned-employees-grid">
+            {assignedEmployees.map((employee) => (
+              <article
+                className="assigned-employee-card"
+                key={employee.id}
+                draggable
+                onDragStart={() => handleDragStart(employee.id)}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="employee-avatar">
+                  {employee.name.charAt(0).toUpperCase()}
+                </div>
+
+                <div className="assigned-employee-details">
+                  <strong>{employee.name}</strong>
+                  <span>
+                    {employee.shift} Shift · {formatDays(employee.days)}
+                  </span>
+                </div>
+
+                <button
+                  className="remove-assignment-button"
+                  type="button"
+                  onClick={() => removeAssignment(employee.id)}
+                  aria-label={`Remove ${employee.name} from RF assignments`}
+                >
+                  ×
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="rf-empty-drop-zone">
+            <div className="rf-drop-icon">↓</div>
+            <h3>Drop employees here</h3>
             <p>
-              Add your employees first. The RF scanner tab will use this
-              employee list for assignments and activity tracking.
+              Drag an employee from the right-side roster to start preparing
+              RF assignments.
             </p>
+          </div>
+        )}
+      </div>
+
+      <div className="rf-coming-soon-note">
+        <span>RF functionality is coming next</span>
+        Scanner assignment and activity tracking will be added here.
+      </div>
+    </div>
+
+    <aside
+      className="rf-employee-roster"
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={handleRosterDrop}
+    >
+      <div className="roster-header">
+        <div>
+          <h2>Available Employees</h2>
+        </div>
+
+        <span className="roster-count">{availableEmployees.length}</span>
+      </div>
+
+      <p className="roster-description">
+        Drag an employee to the assignment board. Drag an assigned employee
+        back here to remove them.
+      </p>
+
+      <div className="roster-list">
+        {availableEmployees.length > 0 ? (
+          availableEmployees.map((employee) => (
+            <article
+              className="roster-employee-card"
+              key={employee.id}
+              draggable
+              onDragStart={() => handleDragStart(employee.id)}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="employee-avatar">
+                {employee.name.charAt(0).toUpperCase()}
+              </div>
+
+              <div className="roster-employee-details">
+                <strong>{employee.name}</strong>
+                <span>
+                  {employee.shift} Shift · {formatDays(employee.days)}
+                </span>
+              </div>
+
+              <span className="drag-handle" aria-label="Drag employee">
+                ⠿
+              </span>
+            </article>
+          ))
+          ) : (
+          <div className="roster-empty-state">
+            <p>No employees available.</p>
             <button
               className="primary-button"
               type="button"
               onClick={() => setActiveTab('employees')}
             >
-              Manage employees
+              Add employees
             </button>
-          </section>
-        ) : (
+          </div>
+        )}
+      </div>
+    </aside>
+  </section>
+) : (
           <section className="employees-section">
             <div className="page-heading">
               <div>
