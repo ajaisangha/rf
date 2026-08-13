@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore'
 import { auth, db } from './firebase/config'
 import { decryptEmployee, encryptEmployee } from './utils/crypto'
+import LockerExportModal from './components/LockerExportModal'
 import './App.css'
 
 const DAYS = [
@@ -50,6 +51,7 @@ function App() {
   const [draggedEmployeeId, setDraggedEmployeeId] = useState(null)
   const [isUpdatingLocker, setIsUpdatingLocker] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null)
+  const [isExportPreviewOpen, setIsExportPreviewOpen] = useState(false)
 
   useEffect(() => {
     let unsubscribeEmployees = () => {}
@@ -554,14 +556,24 @@ function App() {
     <section className="locker-assignment-panel">
       <div className="locker-table-header">
         <div>
-          <p className="eyebrow">RF locker management</p>
           <h2>Locker Assignments</h2>
           <p>
             Drag an available employee into a Day User or Night User cell.
           </p>
         </div>
 
-        <span className="locker-count">{lockers.length} lockers</span>
+        <div className="locker-header-actions">
+          <span className="locker-count">{lockers.length} lockers</span>
+
+          <button
+            className="secondary-button export-preview-button"
+            type="button"
+            onClick={() => setIsExportPreviewOpen(true)}
+            disabled={lockers.length === 0}
+          >
+            Preview & Export
+          </button>
+        </div>
       </div>
 
       <div className="locker-table-wrapper">
@@ -1032,6 +1044,14 @@ function App() {
             </div>
           </section>
         </div>
+      )}
+
+      {isExportPreviewOpen && (
+        <LockerExportModal
+          lockers={lockers}
+          employees={employees}
+          onClose={() => setIsExportPreviewOpen(false)}
+        />
       )}
     </main>
   )

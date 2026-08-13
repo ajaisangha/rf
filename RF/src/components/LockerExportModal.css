@@ -1,0 +1,131 @@
+.export-modal-backdrop {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 8, 18, 0.82);
+  backdrop-filter: blur(9px);
+}
+
+.export-modal {
+  display: flex;
+  width: min(1380px, 100%);
+  max-height: min(820px, calc(100vh - 48px));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(147, 193, 234, 0.2);
+  border-radius: 18px;
+  background: linear-gradient(145deg, #1a2a43, #101c30);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+}
+
+.export-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 26px;
+  border-bottom: 1px solid var(--border);
+}
+
+.export-modal-header h2 {
+  margin-bottom: 7px;
+  color: var(--text);
+}
+
+.export-modal-header p:last-child {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.export-preview-table-wrapper {
+  flex: 1;
+  overflow: auto;
+  padding: 20px 26px;
+}
+
+.export-preview-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+}
+
+.export-preview-table th,
+.export-preview-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(164, 191, 224, 0.13);
+  color: #dbe8f8;
+  text-align: left;
+  vertical-align: top;
+}
+
+.export-preview-table th {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  background: #182942;
+  color: #91a5bd;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.export-combination {
+  color: var(--cyan) !important;
+  font-family: "Courier New", monospace;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.export-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px 26px;
+  border-top: 1px solid var(--border);
+}
+
+.export-word-button,
+.export-excel-button {
+  border-radius: 9px;
+  padding: 10px 15px;
+  color: white;
+  font-weight: 750;
+}
+
+.export-word-button {
+  border: 1px solid rgba(74, 143, 255, 0.45);
+  background: linear-gradient(135deg, #2457bd, #377de5);
+}
+
+.export-excel-button {
+  border: 1px solid rgba(102, 224, 173, 0.4);
+  background: linear-gradient(135deg, #208957, #32b879);
+}
+
+@media (max-width: 700px) {
+  .export-modal-backdrop {
+    padding: 10px;
+  }
+
+  .export-modal-header,
+  .export-modal-actions {
+    padding: 18px;
+  }
+
+  .export-preview-table-wrapper {
+    padding: 14px 18px;
+  }
+
+  .export-modal-actions {
+    justify-content: stretch;
+  }
+
+  .export-modal-actions button {
+    flex: 1;
+  }
+}

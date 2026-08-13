@@ -1887,3 +1887,20 @@ tbody tr:last-child td {
   font-size: 0.71rem;
   line-height: 1.4;
 }
+
+.locker-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.export-preview-button {
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .locker-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
