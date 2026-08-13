@@ -1792,3 +1792,98 @@ tbody tr:last-child td {
     font-size: 0.7rem;
   }
 }
+
+/* Reserved RF lockers */
+
+.reserved-locker-cell {
+  background: rgba(255, 188, 75, 0.06) !important;
+}
+
+.reserved-locker-label {
+  display: block;
+  min-height: 34px;
+  border: 1px dashed rgba(255, 188, 75, 0.38);
+  border-radius: 8px;
+  padding: 8px;
+  color: #ffc96d;
+  font-size: 0.74rem;
+  font-weight: 750;
+  text-align: center;
+}
+
+/* Locker employee assignment details */
+
+.locker-employee-pill {
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+.locker-employee-information {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.locker-employee-information strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.locker-employee-information span {
+  color: var(--muted);
+  font-size: 0.67rem;
+  white-space: nowrap;
+}
+
+/* Suggested locker information */
+
+.selected-employee-row {
+  background: rgba(77, 217, 255, 0.11) !important;
+}
+
+.employee-suggestion-row td {
+  padding: 0 !important;
+  background: rgba(77, 217, 255, 0.055);
+}
+
+.employee-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px;
+  border-bottom: 1px solid rgba(77, 217, 255, 0.14);
+}
+
+.employee-suggestions strong {
+  color: var(--cyan);
+  font-size: 0.67rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.suggested-locker-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.suggested-locker-badge {
+  border: 1px solid rgba(102, 224, 173, 0.32);
+  border-radius: 6px;
+  padding: 4px 7px;
+  background: rgba(102, 224, 173, 0.1);
+  color: var(--green);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.no-suggestion-text {
+  color: #ffadba;
+  font-size: 0.71rem;
+  line-height: 1.4;
+}
