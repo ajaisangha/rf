@@ -1478,3 +1478,317 @@ tbody tr:last-child td {
     min-height: 420px;
   }
 }
+
+/* Locker assignments */
+
+.rf-dashboard {
+  grid-template-columns: minmax(680px, 1fr) minmax(650px, 710px);
+  align-items: start;
+}
+
+.locker-assignment-panel {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(
+    145deg,
+    rgba(28, 45, 70, 0.88),
+    rgba(14, 25, 43, 0.92)
+  );
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+}
+
+.locker-table-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 25px;
+  border-bottom: 1px solid var(--border);
+}
+
+.locker-table-header h2 {
+  margin-bottom: 7px;
+  font-size: 1.4rem;
+  letter-spacing: -0.03em;
+}
+
+.locker-table-header p:last-child {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.locker-count {
+  display: grid;
+  min-width: 78px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(77, 217, 255, 0.25);
+  border-radius: 999px;
+  background: var(--cyan-soft);
+  color: var(--cyan);
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.locker-table-wrapper {
+  max-height: 700px;
+  overflow: auto;
+}
+
+.locker-table {
+  width: 100%;
+  min-width: 850px;
+  border-collapse: collapse;
+}
+
+.locker-table th,
+.locker-table td {
+  padding: 13px 15px;
+  border-bottom: 1px solid rgba(164, 191, 224, 0.1);
+  vertical-align: top;
+  text-align: left;
+}
+
+.locker-table th {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  background: #182942;
+  color: #91a5bd;
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.locker-table td {
+  color: #dbe8f8;
+  font-size: 0.84rem;
+}
+
+.locker-number {
+  width: 95px;
+  color: var(--text) !important;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.locker-combination {
+  width: 140px;
+  color: var(--cyan) !important;
+  font-family: "Courier New", monospace;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.locker-assignment-cell {
+  min-width: 230px;
+  padding: 8px !important;
+  background: rgba(77, 217, 255, 0.015);
+  transition: 0.18s ease;
+}
+
+.locker-assignment-cell:hover {
+  background: rgba(77, 217, 255, 0.08);
+}
+
+.locker-assignment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.locker-employee-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(77, 217, 255, 0.24);
+  border-radius: 8px;
+  padding: 7px 7px 7px 10px;
+  background: rgba(77, 217, 255, 0.09);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.remove-locker-user {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(255, 99, 119, 0.14);
+  color: #ffa5b1;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.remove-locker-user:hover {
+  background: rgba(255, 99, 119, 0.28);
+  color: white;
+}
+
+.remove-locker-user:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.locker-drop-placeholder {
+  display: block;
+  min-height: 34px;
+  border: 1px dashed rgba(77, 217, 255, 0.28);
+  border-radius: 8px;
+  padding: 8px;
+  color: #8297b1;
+  font-size: 0.74rem;
+  font-style: italic;
+  text-align: center;
+}
+
+.locker-table-empty {
+  padding: 35px !important;
+  color: var(--muted) !important;
+  text-align: center !important;
+}
+
+@media (max-width: 1500px) {
+  .rf-dashboard {
+    grid-template-columns: minmax(600px, 1fr) minmax(610px, 680px);
+  }
+}
+
+@media (max-width: 1320px) {
+  .rf-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .rf-employee-roster {
+    order: -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .locker-table-header {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 20px;
+  }
+
+  .locker-table-wrapper {
+    max-height: 620px;
+  }
+}
+
+/* Locker Assignments: natural height and flexible width */
+
+.rf-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(650px, 710px);
+  gap: 20px;
+  align-items: start;
+}
+
+.locker-assignment-panel {
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.locker-table-wrapper {
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+}
+
+.locker-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: auto;
+}
+
+.locker-table th,
+.locker-table td {
+  padding: 13px 14px;
+  white-space: normal;
+}
+
+.locker-number {
+  width: 84px;
+  min-width: 84px;
+}
+
+.locker-combination {
+  width: 130px;
+  min-width: 130px;
+}
+
+.locker-assignment-cell {
+  width: 50%;
+  min-width: 0;
+}
+
+.locker-assignment-list {
+  width: 100%;
+}
+
+.locker-employee-pill {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.locker-drop-placeholder {
+  width: 100%;
+}
+
+/* Available Employees remains a fixed-height scrollable area */
+
+.rf-employee-roster {
+  align-self: start;
+}
+
+/* Stack the two panels only when the screen is too narrow */
+
+@media (max-width: 1450px) {
+  .rf-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .rf-employee-roster {
+    order: -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .locker-table-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .locker-table th,
+  .locker-table td {
+    padding: 11px 9px;
+    font-size: 0.74rem;
+  }
+
+  .locker-number {
+    width: 72px;
+    min-width: 72px;
+  }
+
+  .locker-combination {
+    width: 105px;
+    min-width: 105px;
+  }
+
+  .locker-employee-pill {
+    padding: 6px 7px;
+    font-size: 0.7rem;
+  }
+}

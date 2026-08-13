@@ -32,6 +32,7 @@ const emptyForm = {
 function App() {
   const [activeTab, setActiveTab] = useState('rfs')
   const [employees, setEmployees] = useState([])
+  const [lockers, setLockers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -40,10 +41,11 @@ function App() {
   const [isSaving, setIsSaving] = useState(false)
   const [employeeToDelete, setEmployeeToDelete] = useState(null)
   const [draggedEmployeeId, setDraggedEmployeeId] = useState(null)
-  const [rfAssignments, setRfAssignments] = useState([])
+  const [isUpdatingLocker, setIsUpdatingLocker] = useState(false)
 
   useEffect(() => {
-    let unsubscribe = () => {}
+    let unsubscribeEmployees = () => {}
+    let unsubscribeLockers = () => {}
 
     const startApp = async () => {
       try {
@@ -51,17 +53,19 @@ function App() {
           await signInAnonymously(auth)
         }
 
-        unsubscribe = onSnapshot(
+        unsubscribeEmployees = onSnapshot(
           collection(db, 'employees'),
           async (snapshot) => {
             try {
               const decryptedEmployees = await Promise.all(
                 snapshot.docs.map(async (employeeDoc) => {
-                  const decrypted = await decryptEmployee(employeeDoc.data())
+                  const decryptedEmployee = await decryptEmployee(
+                    employeeDoc.data()
+                  )
 
                   return {
                     id: employeeDoc.id,
-                    ...decrypted,
+                    ...decryptedEmployee,
                   }
                 })
               )
@@ -83,10 +87,47 @@ function App() {
           },
           (firestoreError) => {
             console.error(firestoreError)
-            setError(
-              'Unable to access Firestore. Confirm Anonymous Authentication is enabled and your Firestore rules are published.'
-            )
+            setError('Unable to access employee information from Firestore.')
             setLoading(false)
+          }
+        )
+
+        unsubscribeLockers = onSnapshot(
+          collection(db, 'lockers'),
+          async (snapshot) => {
+            try {
+              const decryptedLockers = await Promise.all(
+                snapshot.docs.map(async (lockerDoc) => {
+                  const decryptedLocker = await decryptEmployee(lockerDoc.data())
+
+                  return {
+                    id: lockerDoc.id,
+                    lockerNumber: decryptedLocker.lockerNumber,
+                    combination: decryptedLocker.combination,
+                    dayEmployeeIds: decryptedLocker.dayEmployeeIds || [],
+                    nightEmployeeIds: decryptedLocker.nightEmployeeIds || [],
+                  }
+                })
+              )
+
+              decryptedLockers.sort((a, b) => {
+                const lockerA = Number(a.lockerNumber.replace('DIS-', ''))
+                const lockerB = Number(b.lockerNumber.replace('DIS-', ''))
+
+                return lockerA - lockerB
+              })
+
+              setLockers(decryptedLockers)
+            } catch (decryptError) {
+              console.error(decryptError)
+              setError(
+                'Unable to decrypt locker data. Check that your encryption key has not changed.'
+              )
+            }
+          },
+          (firestoreError) => {
+            console.error(firestoreError)
+            setError('Unable to access locker information from Firestore.')
           }
         )
       } catch (authError) {
@@ -100,7 +141,10 @@ function App() {
 
     startApp()
 
-    return () => unsubscribe()
+    return () => {
+      unsubscribeEmployees()
+      unsubscribeLockers()
+    }
   }, [])
 
   const dayShiftEmployees = useMemo(
@@ -113,13 +157,14 @@ function App() {
     [employees]
   )
 
-  const assignedEmployees = employees.filter((employee) =>
-    rfAssignments.includes(employee.id)
-  )
+  const assignedEmployeeIds = lockers.flatMap((locker) => [
+    ...(locker.dayEmployeeIds || []),
+    ...(locker.nightEmployeeIds || []),
+  ])
 
   const availableEmployees = employees.filter(
-  (employee) => !rfAssignments.includes(employee.id)
-)
+    (employee) => !assignedEmployeeIds.includes(employee.id)
+  )
 
   const availableDayEmployees = availableEmployees.filter(
     (employee) => employee.shift === 'Day'
@@ -133,6 +178,12 @@ function App() {
     DAYS.filter((day) => days.includes(day.label))
       .map((day) => day.abbreviation)
       .join(', ')
+
+  const employeeNameById = (employeeId) => {
+    const employee = employees.find((item) => item.id === employeeId)
+
+    return employee ? employee.name : 'Unknown employee'
+  }
 
   const openAddModal = (shift = 'Day') => {
     setEditingEmployee(null)
@@ -222,11 +273,6 @@ function App() {
 
     try {
       await deleteDoc(doc(db, 'employees', employeeToDelete.id))
-
-      setRfAssignments((currentAssignments) =>
-        currentAssignments.filter((id) => id !== employeeToDelete.id)
-      )
-
       setEmployeeToDelete(null)
     } catch (deleteError) {
       console.error(deleteError)
@@ -243,161 +289,289 @@ function App() {
     setDraggedEmployeeId(null)
   }
 
-  const handleAssignmentDrop = (event) => {
+  const updateLocker = async (locker, updatedData) => {
+    const encryptedLocker = await encryptEmployee(updatedData)
+
+    await updateDoc(doc(db, 'lockers', locker.id), {
+      ...encryptedLocker,
+      updatedAt: serverTimestamp(),
+    })
+  }
+
+  const handleLockerDrop = async (event, locker, assignmentField) => {
     event.preventDefault()
 
-    if (!draggedEmployeeId) return
+    if (!draggedEmployeeId || isUpdatingLocker) return
 
-    setRfAssignments((currentAssignments) => {
-      if (currentAssignments.includes(draggedEmployeeId)) {
-        return currentAssignments
+    const employeeId = draggedEmployeeId
+
+    setDraggedEmployeeId(null)
+    setIsUpdatingLocker(true)
+
+    try {
+      const updatedLocker = {
+        lockerNumber: locker.lockerNumber,
+        combination: locker.combination,
+        dayEmployeeIds:
+          assignmentField === 'dayEmployeeIds'
+            ? [...new Set([...locker.dayEmployeeIds, employeeId])]
+            : locker.dayEmployeeIds,
+        nightEmployeeIds:
+          assignmentField === 'nightEmployeeIds'
+            ? [...new Set([...locker.nightEmployeeIds, employeeId])]
+            : locker.nightEmployeeIds,
       }
 
-      return [...currentAssignments, draggedEmployeeId]
-    })
-
-    setDraggedEmployeeId(null)
+      await updateLocker(locker, updatedLocker)
+    } catch (lockerError) {
+      console.error(lockerError)
+      setError('Could not assign the employee to this locker.')
+    } finally {
+      setIsUpdatingLocker(false)
+    }
   }
 
-  const handleRosterDrop = (event) => {
-    event.preventDefault()
+  const removeLockerAssignment = async (
+    locker,
+    assignmentField,
+    employeeId
+  ) => {
+    if (isUpdatingLocker) return
 
-    if (!draggedEmployeeId) return
+    setIsUpdatingLocker(true)
 
-    setRfAssignments((currentAssignments) =>
-      currentAssignments.filter((employeeId) => employeeId !== draggedEmployeeId)
+    try {
+      const updatedLocker = {
+        lockerNumber: locker.lockerNumber,
+        combination: locker.combination,
+        dayEmployeeIds:
+          assignmentField === 'dayEmployeeIds'
+            ? locker.dayEmployeeIds.filter((id) => id !== employeeId)
+            : locker.dayEmployeeIds,
+        nightEmployeeIds:
+          assignmentField === 'nightEmployeeIds'
+            ? locker.nightEmployeeIds.filter((id) => id !== employeeId)
+            : locker.nightEmployeeIds,
+      }
+
+      await updateLocker(locker, updatedLocker)
+    } catch (lockerError) {
+      console.error(lockerError)
+      setError('Could not remove the employee from this locker.')
+    } finally {
+      setIsUpdatingLocker(false)
+    }
+  }
+
+  const renderLockerAssignmentCell = (locker, assignmentField) => {
+    const employeeIds = locker[assignmentField] || []
+
+    return (
+      <td
+        className="locker-assignment-cell"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => handleLockerDrop(event, locker, assignmentField)}
+      >
+        {employeeIds.length > 0 ? (
+          <div className="locker-assignment-list">
+            {employeeIds.map((employeeId) => (
+              <div className="locker-employee-pill" key={employeeId}>
+                <span>{employeeNameById(employeeId)}</span>
+
+                <button
+                  type="button"
+                  className="remove-locker-user"
+                  onClick={() =>
+                    removeLockerAssignment(locker, assignmentField, employeeId)
+                  }
+                  aria-label={`Remove ${employeeNameById(
+                    employeeId
+                  )} from ${locker.lockerNumber}`}
+                  disabled={isUpdatingLocker}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <span className="locker-drop-placeholder">
+            {isUpdatingLocker ? 'Saving...' : 'Drop employee here'}
+          </span>
+        )}
+      </td>
     )
-
-    setDraggedEmployeeId(null)
   }
 
-  const removeAssignment = (employeeId) => {
-    setRfAssignments((currentAssignments) =>
-      currentAssignments.filter((id) => id !== employeeId)
-    )
-  }
+  const renderLockerTable = () => (
+    <section className="locker-assignment-panel">
+      <div className="locker-table-header">
+        <div>
+          <p className="eyebrow">RF locker management</p>
+          <h2>Locker Assignments</h2>
+          <p>
+            Drag an available employee into a Day User or Night User cell.
+          </p>
+        </div>
 
-const renderAvailableEmployeeTable = (title, employeeList) => (
-  <section className="roster-shift-section">
-    <div className="roster-shift-header">
-      <h3>{title}</h3>
-      <span>{employeeList.length}</span>
-    </div>
-
-    <div className="roster-table-wrapper">
-      <table className="roster-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Schedule</th>
-            <th className="roster-drag-column">Drag</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {employeeList.length > 0 ? (
-            employeeList.map((employee) => (
-              <tr
-                key={employee.id}
-                draggable
-                onDragStart={(event) => handleDragStart(event, employee.id)}
-                onDragEnd={handleDragEnd}
-              >
-                <td className="roster-table-name">
-                  <span className="table-avatar">
-                    {employee.name.charAt(0).toUpperCase()}
-                  </span>
-                  {employee.name}
-                </td>
-
-                <td className="roster-schedule">
-                  {formatDays(employee.days)}
-                </td>
-
-                <td className="roster-drag-cell">
-                  <span className="drag-handle" aria-label="Drag employee">
-                    ⠿
-                  </span>
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="3" className="roster-table-empty">
-                No available employees.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  </section>
-)
-
-const renderEmployeeTable = (title, employeeList, shift) => (
-  <section className="shift-card">
-    <div className="table-header">
-      <div>
-        <p className="eyebrow">Employees</p>
-        <h2>{title}</h2>
+        <span className="locker-count">{lockers.length} lockers</span>
       </div>
 
-      <button
-        className="primary-button"
-        type="button"
-        onClick={() => openAddModal(shift)}
-      >
-        + Add employee
-      </button>
-    </div>
+      <div className="locker-table-wrapper">
+        <table className="locker-table">
+          <thead>
+            <tr>
+              <th>Locker #</th>
+              <th>Lock Combination</th>
+              <th>Day User</th>
+              <th>Night User</th>
+            </tr>
+          </thead>
 
-    <div className="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Shift</th>
-            <th className="actions-column">Actions</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {employeeList.length > 0 ? (
-            employeeList.map((employee) => (
-              <tr key={employee.id}>
-                <td className="employee-name">{employee.name}</td>
-                <td>{formatDays(employee.days)}</td>
-                <td className="table-actions">
-                  <button
-                    className="text-button"
-                    type="button"
-                    onClick={() => openEditModal(employee)}
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    className="text-button delete-button"
-                    type="button"
-                    onClick={() => setEmployeeToDelete(employee)}
-                  >
-                    Delete
-                  </button>
+          <tbody>
+            {lockers.length > 0 ? (
+              lockers.map((locker) => (
+                <tr key={locker.id}>
+                  <td className="locker-number">{locker.lockerNumber}</td>
+                  <td className="locker-combination">{locker.combination}</td>
+                  {renderLockerAssignmentCell(locker, 'dayEmployeeIds')}
+                  {renderLockerAssignmentCell(locker, 'nightEmployeeIds')}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="locker-table-empty">
+                  No lockers found. Import the encrypted locker data first.
                 </td>
               </tr>
-            ))
-          ) : (
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+
+  const renderAvailableEmployeeTable = (title, employeeList) => (
+    <section className="roster-shift-section">
+      <div className="roster-shift-header">
+        <h3>{title}</h3>
+        <span>{employeeList.length}</span>
+      </div>
+
+      <div className="roster-table-wrapper">
+        <table className="roster-table">
+          <thead>
             <tr>
-              <td colSpan="3" className="empty-state">
-                No employees added to this shift yet.
-              </td>
+              <th>Name</th>
+              <th>Schedule</th>
+              <th className="roster-drag-column">Drag</th>
             </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  </section>
-)
+          </thead>
+
+          <tbody>
+            {employeeList.length > 0 ? (
+              employeeList.map((employee) => (
+                <tr
+                  key={employee.id}
+                  draggable
+                  onDragStart={(event) => handleDragStart(event, employee.id)}
+                  onDragEnd={handleDragEnd}
+                >
+                  <td className="roster-table-name">
+                    <span className="table-avatar">
+                      {employee.name.charAt(0).toUpperCase()}
+                    </span>
+                    {employee.name}
+                  </td>
+
+                  <td className="roster-schedule">
+                    {formatDays(employee.days)}
+                  </td>
+
+                  <td className="roster-drag-cell">
+                    <span className="drag-handle" aria-label="Drag employee">
+                      ⠿
+                    </span>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="3" className="roster-table-empty">
+                  No available employees.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+
+  const renderEmployeeTable = (title, employeeList, shift) => (
+    <section className="shift-card">
+      <div className="table-header">
+        <div>
+          <p className="eyebrow">Employees</p>
+          <h2>{title}</h2>
+        </div>
+
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => openAddModal(shift)}
+        >
+          + Add employee
+        </button>
+      </div>
+
+      <div className="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Shift</th>
+              <th className="actions-column">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {employeeList.length > 0 ? (
+              employeeList.map((employee) => (
+                <tr key={employee.id}>
+                  <td className="employee-name">{employee.name}</td>
+                  <td>{formatDays(employee.days)}</td>
+                  <td className="table-actions">
+                    <button
+                      className="text-button"
+                      type="button"
+                      onClick={() => openEditModal(employee)}
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      className="text-button delete-button"
+                      type="button"
+                      onClick={() => setEmployeeToDelete(employee)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="3" className="empty-state">
+                  No employees added to this shift yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
 
   return (
     <main className="app-shell">
@@ -445,101 +619,33 @@ const renderEmployeeTable = (title, employeeList, shift) => (
 
             {activeTab === 'rfs' ? (
               <section className="rf-dashboard">
-                <div
-                  className="rf-workspace"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={handleAssignmentDrop}
-                >
-                  <div className="rf-workspace-header">
-                    <div>
-                      <p className="eyebrow">Scanner management</p>
-                      <h2>RF Assignment Board</h2>
-                      <p>
-                        Drag employees from the roster into this area to prepare
-                        RF assignments.
-                      </p>
-                    </div>
+                {renderLockerTable()}
 
-                    <div className="rf-count">
-                      {assignedEmployees.length} assigned
-                    </div>
-                  </div>
-
-                  <div className="rf-drop-zone">
-                    {assignedEmployees.length > 0 ? (
-                      <div className="assigned-employees-grid">
-                        {assignedEmployees.map((employee) => (
-                          <article
-                            className="assigned-employee-card"
-                            key={employee.id}
-                            draggable
-                            onDragStart={(event) =>
-                              handleDragStart(event, employee.id)
-                            }
-                            onDragEnd={handleDragEnd}
-                          >
-                            <div className="employee-avatar">
-                              {employee.name.charAt(0).toUpperCase()}
-                            </div>
-
-                            <div className="assigned-employee-details">
-                              <strong>{employee.name}</strong>
-                              <span>
-                                {employee.shift} Shift ·{' '}
-                                {formatDays(employee.days)}
-                              </span>
-                            </div>
-
-                            <button
-                              className="remove-assignment-button"
-                              type="button"
-                              onClick={() => removeAssignment(employee.id)}
-                              aria-label={`Remove ${employee.name} from RF assignments`}
-                            >
-                              ×
-                            </button>
-                          </article>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="rf-empty-drop-zone">
-                        <div className="rf-drop-icon">↓</div>
-                        <h3>Drop employees here</h3>
-                        <p>
-                          Drag an employee from Available Employees to start
-                          preparing RF assignments.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rf-coming-soon-note">
-                    <span>RF functionality is coming next</span>
-                    Scanner assignment and activity tracking will be added here.
-                  </div>
-                </div>
-
-                <aside
-                  className="rf-employee-roster"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={handleRosterDrop}
-                >
+                <aside className="rf-employee-roster">
                   <div className="roster-header">
                     <div>
                       <h2>Available Employees</h2>
                     </div>
 
-                    <span className="roster-count">{availableEmployees.length}</span>
+                    <span className="roster-count">
+                      {availableEmployees.length}
+                    </span>
                   </div>
 
                   <p className="roster-description">
-                    Drag an employee into the assignment board. Drop an assigned employee
-                    back in this area to make them available again.
+                    Drag an employee into the locker table to assign them.
+                    Remove a user from a locker to make them available again.
                   </p>
 
                   <div className="roster-list roster-table-list">
-                    {renderAvailableEmployeeTable('Day Shift', availableDayEmployees)}
-                    {renderAvailableEmployeeTable('Night Shift', availableNightEmployees)}
+                    {renderAvailableEmployeeTable(
+                      'Day Shift',
+                      availableDayEmployees
+                    )}
+                    {renderAvailableEmployeeTable(
+                      'Night Shift',
+                      availableNightEmployees
+                    )}
                   </div>
                 </aside>
               </section>
