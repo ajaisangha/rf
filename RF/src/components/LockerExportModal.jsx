@@ -86,6 +86,7 @@ function LockerExportModal({ lockers, employees, onClose }) {
     pdf.setFillColor(16, 27, 45)
     pdf.rect(0, 0, 297, 210, 'F')
 
+    pdf.setTextColor(77, 217, 255)
     pdf.setFontSize(17)
 pdf.text('Voila — Dispatch RF Tracker', 12, 14)
 
