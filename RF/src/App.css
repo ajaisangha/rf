@@ -1904,3 +1904,102 @@ tbody tr:last-child td {
     justify-content: space-between;
   }
 }
+
+/* Automatic RF allocation notification */
+
+.allocation-notification-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(2, 8, 18, 0.76);
+  backdrop-filter: blur(8px);
+}
+
+.allocation-notification {
+  width: min(490px, 100%);
+  border: 1px solid rgba(147, 193, 234, 0.22);
+  border-radius: 18px;
+  padding: 32px;
+  background: linear-gradient(145deg, #1a2a43, #101c30);
+  color: var(--text);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+.allocation-notification-icon {
+  display: grid;
+  width: 60px;
+  height: 60px;
+  place-items: center;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  font-size: 1.7rem;
+  font-weight: 900;
+}
+
+.allocation-success .allocation-notification-icon {
+  border: 1px solid rgba(102, 224, 173, 0.4);
+  background: rgba(102, 224, 173, 0.13);
+  color: var(--green);
+}
+
+.allocation-warning .allocation-notification-icon {
+  border: 1px solid rgba(255, 188, 75, 0.45);
+  background: rgba(255, 188, 75, 0.12);
+  color: #ffc96d;
+}
+
+.allocation-notification h2 {
+  margin-bottom: 12px;
+  font-size: 1.45rem;
+  letter-spacing: -0.03em;
+}
+
+.allocation-notification-message {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.allocation-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin-top: 24px;
+  border: 1px solid rgba(77, 217, 255, 0.15);
+  border-radius: 12px;
+  padding: 16px;
+  background: rgba(77, 217, 255, 0.055);
+  text-align: left;
+}
+
+.allocation-details span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.allocation-details strong {
+  color: var(--text);
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.allocation-warning-note {
+  margin-top: 22px;
+  border: 1px solid rgba(255, 188, 75, 0.25);
+  border-radius: 10px;
+  padding: 13px;
+  background: rgba(255, 188, 75, 0.08);
+  color: #ffd78c;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.allocation-acknowledge-button {
+  width: 100%;
+  margin-top: 25px;
+}

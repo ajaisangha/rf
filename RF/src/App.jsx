@@ -52,6 +52,7 @@ function App() {
   const [isUpdatingLocker, setIsUpdatingLocker] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null)
   const [isExportPreviewOpen, setIsExportPreviewOpen] = useState(false)
+  const [allocationNotification, setAllocationNotification] = useState(null)
 
   useEffect(() => {
     let unsubscribeEmployees = () => {}
@@ -277,51 +278,68 @@ function App() {
   }
 
   const handleSave = async (event) => {
-    event.preventDefault()
+  event.preventDefault()
 
-    if (!formData.name.trim()) {
-      setError('Please enter an employee name.')
-      return
-    }
-
-    if (formData.days.length === 0) {
-      setError('Select at least one scheduled day.')
-      return
-    }
-
-    setIsSaving(true)
-    setError('')
-
-    try {
-      const employeePayload = {
-        name: formData.name.trim(),
-        shift: formData.shift,
-        days: formData.days,
-      }
-
-      const encryptedEmployee = await encryptEmployee(employeePayload)
-
-      if (editingEmployee) {
-        await updateDoc(doc(db, 'employees', editingEmployee.id), {
-          ...encryptedEmployee,
-          updatedAt: serverTimestamp(),
-        })
-      } else {
-        await addDoc(collection(db, 'employees'), {
-          ...encryptedEmployee,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        })
-      }
-
-      closeModal()
-    } catch (saveError) {
-      console.error(saveError)
-      setError('Could not save the employee. Please try again.')
-    } finally {
-      setIsSaving(false)
-    }
+  if (!formData.name.trim()) {
+    setError('Please enter an employee name.')
+    return
   }
+
+  if (formData.days.length === 0) {
+    setError('Select at least one scheduled day.')
+    return
+  }
+
+  setIsSaving(true)
+  setError('')
+
+  try {
+    const employeePayload = {
+      name: formData.name.trim(),
+      shift: formData.shift,
+      days: formData.days,
+    }
+
+    const encryptedEmployee = await encryptEmployee(employeePayload)
+
+    if (editingEmployee) {
+      await updateDoc(doc(db, 'employees', editingEmployee.id), {
+        ...encryptedEmployee,
+        updatedAt: serverTimestamp(),
+      })
+    } else {
+      const newEmployeeDoc = await addDoc(collection(db, 'employees'), {
+        ...encryptedEmployee,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+
+      const newEmployee = {
+        id: newEmployeeDoc.id,
+        ...employeePayload,
+      }
+
+      const allocationResult = await autoAssignNewEmployee(newEmployee)
+
+      setAllocationNotification({
+        employeeName: newEmployee.name,
+        assigned: allocationResult.assigned,
+        lockerNumber: allocationResult.lockerNumber || null,
+        shift: newEmployee.shift,
+        message: allocationResult.message,
+      })
+    }
+
+    closeModal()
+  } catch (saveError) {
+    console.error(saveError)
+    setError(
+      'Could not save the employee or automatically assign an RF locker.'
+    )
+  } finally {
+    setIsSaving(false)
+  }
+}
 
   const updateLocker = async (locker, updatedData) => {
     const encryptedLocker = await encryptEmployee(updatedData)
@@ -331,6 +349,44 @@ function App() {
       updatedAt: serverTimestamp(),
     })
   }
+
+  const autoAssignNewEmployee = async (newEmployee) => {
+  const compatibleLockers = lockers.filter((locker) =>
+    lockerCanAcceptEmployee(locker, newEmployee)
+  )
+
+  if (compatibleLockers.length === 0) {
+    return {
+      assigned: false,
+      message: `${newEmployee.name} could not be assigned to an RF locker. No compatible locker is currently available.`,
+    }
+  }
+
+  const selectedLocker = compatibleLockers[0]
+  const assignmentField = getLockerAssignmentField(newEmployee)
+
+  const updatedLocker = {
+    lockerNumber: selectedLocker.lockerNumber,
+    combination: selectedLocker.combination,
+    dayEmployeeIds:
+      assignmentField === 'dayEmployeeIds'
+        ? [...new Set([...selectedLocker.dayEmployeeIds, newEmployee.id])]
+        : selectedLocker.dayEmployeeIds,
+    nightEmployeeIds:
+      assignmentField === 'nightEmployeeIds'
+        ? [...new Set([...selectedLocker.nightEmployeeIds, newEmployee.id])]
+        : selectedLocker.nightEmployeeIds,
+  }
+
+  await updateLocker(selectedLocker, updatedLocker)
+
+  return {
+    assigned: true,
+    lockerNumber: selectedLocker.lockerNumber,
+    assignmentField,
+    message: `${newEmployee.name} has been automatically assigned to ${selectedLocker.lockerNumber} as a ${newEmployee.shift} User.`,
+  }
+}
 
   const handleDelete = async () => {
     if (!employeeToDelete || isUpdatingLocker) return
@@ -1053,6 +1109,65 @@ function App() {
           onClose={() => setIsExportPreviewOpen(false)}
         />
       )}
+
+      {allocationNotification && (
+  <div className="allocation-notification-backdrop">
+    <section
+      className={`allocation-notification ${
+        allocationNotification.assigned ? 'allocation-success' : 'allocation-warning'
+      }`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="allocation-notification-title"
+    >
+      <div className="allocation-notification-icon">
+        {allocationNotification.assigned ? '✓' : '!'}
+      </div>
+
+      <p className="eyebrow">
+        {allocationNotification.assigned
+          ? 'RF automatically assigned'
+          : 'RF assignment required'}
+      </p>
+
+      <h2 id="allocation-notification-title">
+        {allocationNotification.assigned
+          ? 'Employee assigned successfully'
+          : 'Employee needs an RF assignment'}
+      </h2>
+
+      <p className="allocation-notification-message">
+        {allocationNotification.message}
+      </p>
+
+      {allocationNotification.assigned ? (
+        <div className="allocation-details">
+          <span>Employee</span>
+          <strong>{allocationNotification.employeeName}</strong>
+
+          <span>Assigned RF</span>
+          <strong>{allocationNotification.lockerNumber}</strong>
+
+          <span>Shift</span>
+          <strong>{allocationNotification.shift} Shift</strong>
+        </div>
+      ) : (
+        <div className="allocation-warning-note">
+          The employee remains in Available Employees. Click the employee to
+          view compatible RF suggestions when a locker becomes available.
+        </div>
+      )}
+
+      <button
+        className="primary-button allocation-acknowledge-button"
+        type="button"
+        onClick={() => setAllocationNotification(null)}
+      >
+        Acknowledge
+      </button>
+    </section>
+  </div>
+)}
     </main>
   )
 }
