@@ -329,10 +329,9 @@ const handleDelete = async () => {
           <section className="employees-section">
             <div className="page-heading">
               <div>
-                <p className="eyebrow">Team scheduling</p>
                 <h2>Employees</h2>
                 <p>
-                  Manage scheduled employees for each warehouse shift.
+                  Manage scheduled employees for each shift.
                 </p>
               </div>
             </div>
